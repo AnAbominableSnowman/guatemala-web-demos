@@ -20,6 +20,8 @@
       bookingNote: "Sin pago en línea. Le confirmamos disponibilidad por WhatsApp, normalmente en menos de una hora.",
       askConfirm: "¿Tienen disponibilidad? ¡Gracias!",
       errDates: "Elija una fecha de salida posterior a la de llegada.", errMin: (n) => `Estadía mínima: ${n} noches.`,
+      gallery: "Galería", reviewsFrom: "Reseñas", seeAllGoogle: "Ver todas en Google Maps",
+      translated: "Traducido por Google", photoBy: "Foto", photosFrom: "Fotos de Google Maps",
     },
     en: {
       about: "About us", reviews: "What our guests say", reviewsShort: "Reviews", visit: "Visit us",
@@ -37,6 +39,8 @@
       bookingNote: "No online payment. We confirm availability on WhatsApp, usually within an hour.",
       askConfirm: "Do you have availability? Thanks!",
       errDates: "Pick a check-out date after check-in.", errMin: (n) => `Minimum stay: ${n} nights.`,
+      gallery: "Gallery", reviewsFrom: "Reviews", seeAllGoogle: "See all on Google Maps",
+      translated: "Translated by Google", photoBy: "Photo", photosFrom: "Photos from Google Maps",
     },
   };
 
@@ -45,6 +49,7 @@
   const kind = KIND[S.type] || "services";
 
   let lang = pickLang();
+  const live = {}; // live Google data per language (google.js), when configured
   const $ = (id) => document.getElementById(id);
   const t = (v) => (v && typeof v === "object" ? (v[lang] ?? v.es ?? v.en ?? "") : (v ?? ""));
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -88,30 +93,70 @@
       (kind === "rooms" ? `<a class="btn btn-primary" href="#book">${esc(u.checkDates)}</a>`
         : mainCta ? `<a class="btn btn-primary" href="${mainCta}" target="_blank" rel="noopener">${esc(kind === "tours" ? u.book : u.whatsapp)}</a>` : "") +
       `<a class="btn btn-ghost" href="#offer">${esc(u[seeKey])}</a>`;
-    $("hero-rating").innerHTML = S.rating
-      ? `<span class="stars">${stars(S.rating)}</span> ${S.rating} · ${Number(S.reviewCount || 0).toLocaleString(lang)} ${u.reviewsOnGoogle}` : "";
+    const L = live[lang];
+    const rating = L?.rating ?? S.rating, count = L?.count ?? S.reviewCount;
+    $("hero-rating").innerHTML = rating
+      ? `<span class="stars">${stars(rating)}</span> ${rating} · ${Number(count || 0).toLocaleString(lang)} ${u.reviewsOnGoogle}` : "";
+
+    // Photos: the owner's own (S.photos, for client sites) > live Google photos > colored placeholders.
+    const photos = ownPhotos().length ? ownPhotos() : (L?.photos || []);
+    $("hero").style.backgroundImage = photos[0]
+      ? `linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.6)), url("${photos[0].src}")` : "";
+    $("hero").classList.toggle("has-photo", !!photos[0]);
 
     // about
     $("about-text").textContent = t(S.about);
-    const photos = S.photoLabels || [{ es: "Foto del local", en: "Our place" }, { es: "Nuestros platillos", en: "Our food" }];
-    $("photo-grid").innerHTML = photos.slice(0, 2).map((p) => `<div>${esc(u.photo)}: ${esc(t(p))}</div>`).join("");
+    if (photos.length >= 3) {
+      $("photo-grid").innerHTML = photos.slice(1, 3).map(photoFigure).join("");
+    } else {
+      const labels = S.photoLabels || [{ es: "Foto del local", en: "Our place" }, { es: "Nuestros platillos", en: "Our food" }];
+      $("photo-grid").innerHTML = labels.slice(0, 2).map((p) => `<div>${esc(u.photo)}: ${esc(t(p))}</div>`).join("");
+    }
+
+    // gallery (only with real photos)
+    const rest = photos.slice(3, 3 + (S.galleryMax || 9));
+    $("gallery").hidden = rest.length === 0;
+    $("gallery-grid").innerHTML = rest.map(photoFigure).join("") +
+      (!ownPhotos().length && rest.length && L?.mapsUri
+        ? `<p class="source-note"><a href="${esc(L.mapsUri)}" target="_blank" rel="noopener">${esc(u.photosFrom)}</a></p>` : "");
 
     // offer
     $("offer-title").textContent = t(S.offerTitle) || u[kind];
     $("offer-body").innerHTML = kind === "menu" ? renderMenu(u) : renderCards(u);
     if (kind === "rooms") wireBooking(u);
 
-    // reviews
-    $("review-grid").innerHTML = (S.reviews || []).map((r) =>
-      `<div class="review"><div class="stars">${stars(r.stars || 5)}</div><p>“${esc(t(r.text))}”</p><cite>— ${esc(r.author || "")}</cite></div>`).join("");
-    $("reviews").style.display = (S.reviews || []).length ? "" : "none";
+    // reviews: live Google reviews (with required attribution) > reviews written in the JSON
+    const liveReviews = (L?.reviews || []).slice(0, S.reviewsMax || 5);
+    if (liveReviews.length) {
+      $("review-grid").innerHTML = liveReviews.map((r) => `
+        <div class="review">
+          <div class="review-author">
+            ${r.authorPhoto ? `<img src="${esc(r.authorPhoto)}" alt="" width="36" height="36" loading="lazy" referrerpolicy="no-referrer">` : ""}
+            <div><a href="${esc(r.authorUri)}" target="_blank" rel="noopener">${esc(r.author)}</a><small>${esc(r.when || "")}</small></div>
+          </div>
+          <div class="stars">${stars(r.rating)}</div>
+          <p>${esc(r.text)}</p>
+          ${r.translated ? `<small class="muted">${esc(u.translated)}</small>` : ""}
+        </div>`).join("");
+      $("reviews-source").innerHTML = `<span class="g-badge">Google</span> ${esc(u.reviewsFrom)} ·
+        <a href="${esc(L.mapsUri)}" target="_blank" rel="noopener">${esc(u.seeAllGoogle)}</a>`;
+    } else {
+      $("review-grid").innerHTML = (S.reviews || []).map((r) =>
+        `<div class="review"><div class="stars">${stars(r.stars || 5)}</div><p>“${esc(t(r.text))}”</p><cite>— ${esc(r.author || "")}</cite></div>`).join("");
+      $("reviews-source").innerHTML = "";
+    }
+    $("reviews").style.display = liveReviews.length || (S.reviews || []).length ? "" : "none";
 
     // visit
-    $("address").textContent = S.address || "";
-    $("hours").innerHTML = (S.hours || []).map((h) => `<tr><td>${esc(t(h.days))}</td><td>${esc(t(h.time))}</td></tr>`).join("");
+    $("address").textContent = S.address || L?.address || "";
+    $("hours").innerHTML = S.hours
+      ? S.hours.map((h) => `<tr><td>${esc(t(h.days))}</td><td>${esc(t(h.time))}</td></tr>`).join("")
+      : (L?.hours || []).map((line) => { const i = line.indexOf(": ");
+          return `<tr><td>${esc(line.slice(0, i))}</td><td>${esc(line.slice(i + 2))}</td></tr>`; }).join("");
     const links = [];
+    const phone = S.phone || L?.phone;
     if (S.whatsapp) links.push(`<a href="${wa(`${u.hello} — ${S.name}`)}" target="_blank" rel="noopener">WhatsApp</a>`);
-    if (S.phone) links.push(`<a href="tel:${S.phone.replace(/\s/g, "")}">${esc(u.call)} ${esc(S.phone)}</a>`);
+    if (phone) links.push(`<a href="tel:${phone.replace(/[^0-9+]/g, "")}">${esc(u.call)} ${esc(phone)}</a>`);
     if (S.instagram) links.push(`<a href="https://instagram.com/${S.instagram}" target="_blank" rel="noopener">Instagram</a>`);
     if (S.facebook) links.push(`<a href="https://facebook.com/${S.facebook}" target="_blank" rel="noopener">Facebook</a>`);
     $("contact-links").innerHTML = links.join("");
@@ -121,6 +166,27 @@
     const waFloat = wa(`${u.hello} — ${S.name}`);
     $("wa-float").style.display = waFloat ? "" : "none";
     if (waFloat) $("wa-float").href = waFloat;
+
+    loadLive();
+  }
+
+  // Owner-supplied photos: [{ "src": "images/terraza.jpg", "alt": {es,en} }]
+  function ownPhotos() { return (S.photos || []).map((p) => ({ src: p.src, thumb: p.src, alt: t(p.alt), credit: [] })); }
+
+  function photoFigure(p) {
+    const credit = (p.credit || []).filter((c) => c.name)
+      .map((c) => c.uri ? `<a href="${esc(c.uri)}" target="_blank" rel="noopener">${esc(c.name)}</a>` : esc(c.name)).join(", ");
+    return `<figure class="photo"><img src="${esc(p.thumb || p.src)}" alt="${esc(p.alt || "")}" loading="lazy" referrerpolicy="no-referrer">
+      ${credit ? `<figcaption>${esc(UI[lang].photoBy)}: ${credit}</figcaption>` : ""}</figure>`;
+  }
+
+  function loadLive() {
+    if (live[lang] || live[lang] === false || !window.loadGooglePlace) return;
+    const l = lang;
+    live[l] = false; // in flight / failed: don't retry on every render
+    window.loadGooglePlace(S, l)
+      .then((data) => { if (data) { live[l] = data; if (lang === l) render(); } })
+      .catch((e) => console.warn("Live Google data unavailable:", e.message));
   }
 
   function renderMenu() {
