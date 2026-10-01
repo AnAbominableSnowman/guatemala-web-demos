@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demos de páginas web · Website demos</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fbf7f1; --text:#2b2118; --muted:#6d5f52; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#17130f; --text:#f3ece4; --muted:#b7a999; --card:#221c17; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:Inter,system-ui,sans-serif; line-height:1.6; }
+  main { max-width: 980px; margin: 0 auto; padding: 56px 16px; }
+  h1 { font-family: Fraunces, Georgia, serif; font-size: clamp(2rem, 5vw, 3rem); line-height:1.1; margin:0 0 12px; }
+  p.lead { color: var(--muted); font-size: 1.1rem; max-width: 640px; margin: 0 0 36px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 20px; }
+  .card { background:var(--card); border-radius:16px; overflow:hidden;
+           box-shadow: 0 6px 24px rgba(0,0,0,.08); transition: transform .15s ease; }
+  .card:hover { transform: translateY(-3px); }
+  .swatch { height: 130px; display:grid; place-items:center; color:#fff; text-decoration:none; font-family:Fraunces,Georgia,serif; font-size:1.5rem; padding:0 16px; text-align:center; }
+  .langs a { color: inherit; }
+  .body { padding: 16px 18px 20px; }
+  .type { font-size:.8rem; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+  .langs { margin-top:10px; font-size:.9rem; font-weight:600; }
+  footer { margin-top: 48px; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>¿Cómo se vería su página web?<br><span style="opacity:.6">What could your website look like?</span></h1>
+  <p class="lead">Ejemplos de páginas web en español e inglés, con botón de WhatsApp, menú o reservas, reseñas y mapa. Los negocios son ficticios.<br>
+  Example websites in Spanish and English, with a WhatsApp button, menu or bookings, reviews and a map. These businesses are fictional.</p>
+  <div class="grid">
+    <div class="card">
+      <a class="swatch" href="cafe-la-ceiba/?lang=es" style="background:linear-gradient(135deg,#e9a23b,#6b3a1f)">Café La Ceiba</a>
+      <div class="body">
+        <div class="type">Café · Café</div>
+        <div>Café de altura, desayunos todo el día y vista a los volcanes.</div>
+        <div class="langs"><a href="cafe-la-ceiba/?lang=es">Ver en español</a> · <a href="cafe-la-ceiba/?lang=en">View in English</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <a class="swatch" href="hostal-casa-luna/?lang=es" style="background:linear-gradient(135deg,#f2b544,#23415e)">Hostal Casa Luna</a>
+      <div class="body">
+        <div class="type">Hostal / Hotel · Hostel / Hotel</div>
+        <div>Reserva directo con nosotros y obtén el mejor precio.</div>
+        <div class="langs"><a href="hostal-casa-luna/?lang=es">Ver en español</a> · <a href="hostal-casa-luna/?lang=en">View in English</a></div>
+      </div>
+    </div>
+    <div class="card">
+      <a class="swatch" href="volcan-tours/?lang=es" style="background:linear-gradient(135deg,#e4572e,#2f4a2a)">Volcán Tours Antigua</a>
+      <div class="body">
+        <div class="type">Tours · Tour agency</div>
+        <div>Acatenango, Pacaya y Atitlán con guías que nacieron aquí.</div>
+        <div class="langs"><a href="volcan-tours/?lang=es">Ver en español</a> · <a href="volcan-tours/?lang=en">View in English</a></div>
+      </div>
+    </div>
+  </div>
+  <footer>Toque ES / EN en cada página para cambiar de idioma · Tap ES / EN on each page to switch language.</footer>
+</main>
+</body>
+</html>
