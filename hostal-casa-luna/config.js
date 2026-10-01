@@ -31,6 +31,10 @@ window.SITE = {
     "es": "Habitaciones",
     "en": "Rooms"
   },
+  "booking": {
+    "maxGuests": 4,
+    "minNights": 1
+  },
   "hours": [
     {
       "days": {
@@ -70,7 +74,8 @@ window.SITE = {
         "es": "Locker, cortina de privacidad y desayuno incluido.",
         "en": "Locker, privacy curtain and breakfast included."
       },
-      "price": "Q120"
+      "price": "Q120",
+      "perPerson": true
     },
     {
       "name": {

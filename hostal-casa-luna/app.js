@@ -13,6 +13,13 @@
       hello: "¡Hola! Vi su sitio web y quisiera información", bookMsg: "¡Hola! Quisiera reservar",
       demo: "Sitio de demostración — creado como ejemplo. Los datos pueden no ser exactos.",
       photo: "Foto", rights: "Todos los derechos reservados.",
+      perBed: "por cama / noche", choose: "Elegir", checkDates: "Ver fechas y precios",
+      bookTitle: "Solicitar reserva", checkin: "Llegada", checkout: "Salida", room: "Habitación", guests: "Huéspedes",
+      guestsShort: "personas", yourName: "Su nombre", nameLabel: "Nombre", estimate: "total estimado", estimateTotal: "Total estimado",
+      requestBtn: "Enviar solicitud por WhatsApp", nightsLabel: (n) => `${n} ${n === 1 ? "noche" : "noches"}`,
+      bookingNote: "Sin pago en línea. Le confirmamos disponibilidad por WhatsApp, normalmente en menos de una hora.",
+      askConfirm: "¿Tienen disponibilidad? ¡Gracias!",
+      errDates: "Elija una fecha de salida posterior a la de llegada.", errMin: (n) => `Estadía mínima: ${n} noches.`,
     },
     en: {
       about: "About us", reviews: "What our guests say", reviewsShort: "Reviews", visit: "Visit us",
@@ -23,6 +30,13 @@
       hello: "Hi! I saw your website and would like some information", bookMsg: "Hi! I'd like to book",
       demo: "Demo site — built as an example. Details may not be accurate.",
       photo: "Photo", rights: "All rights reserved.",
+      perBed: "per bed / night", choose: "Choose", checkDates: "Check dates & prices",
+      bookTitle: "Request a booking", checkin: "Check-in", checkout: "Check-out", room: "Room", guests: "Guests",
+      guestsShort: "guests", yourName: "Your name", nameLabel: "Name", estimate: "estimated total", estimateTotal: "Estimated total",
+      requestBtn: "Send request on WhatsApp", nightsLabel: (n) => `${n} ${n === 1 ? "night" : "nights"}`,
+      bookingNote: "No online payment. We confirm availability on WhatsApp, usually within an hour.",
+      askConfirm: "Do you have availability? Thanks!",
+      errDates: "Pick a check-out date after check-in.", errMin: (n) => `Minimum stay: ${n} nights.`,
     },
   };
 
@@ -69,9 +83,10 @@
     $("hero-title").textContent = S.name;
     $("hero-tagline").textContent = t(S.tagline);
     const seeKey = { menu: "seeMenu", rooms: "seeRooms", tours: "seeTours", services: "seeServices" }[kind];
-    const mainCta = kind === "rooms" || kind === "tours" ? wa(`${u.bookMsg} — ${S.name}`) : wa(`${u.hello} — ${S.name}`);
+    const mainCta = kind === "tours" ? wa(`${u.bookMsg} — ${S.name}`) : wa(`${u.hello} — ${S.name}`);
     $("hero-cta").innerHTML =
-      (mainCta ? `<a class="btn btn-primary" href="${mainCta}" target="_blank" rel="noopener">${esc(kind === "rooms" || kind === "tours" ? u.book : u.whatsapp)}</a>` : "") +
+      (kind === "rooms" ? `<a class="btn btn-primary" href="#book">${esc(u.checkDates)}</a>`
+        : mainCta ? `<a class="btn btn-primary" href="${mainCta}" target="_blank" rel="noopener">${esc(kind === "tours" ? u.book : u.whatsapp)}</a>` : "") +
       `<a class="btn btn-ghost" href="#offer">${esc(u[seeKey])}</a>`;
     $("hero-rating").innerHTML = S.rating
       ? `<span class="stars">${stars(S.rating)}</span> ${S.rating} · ${Number(S.reviewCount || 0).toLocaleString(lang)} ${u.reviewsOnGoogle}` : "";
@@ -84,6 +99,7 @@
     // offer
     $("offer-title").textContent = t(S.offerTitle) || u[kind];
     $("offer-body").innerHTML = kind === "menu" ? renderMenu(u) : renderCards(u);
+    if (kind === "rooms") wireBooking(u);
 
     // reviews
     $("review-grid").innerHTML = (S.reviews || []).map((r) =>
@@ -122,16 +138,111 @@
 
   function renderCards(u) {
     const items = S[kind] || [];
-    const unit = kind === "rooms" ? u.perNight : kind === "tours" ? u.perPerson : "";
-    return `<div class="cards">${items.map((i) => {
-      const link = wa(`${u.bookMsg}: ${t(i.name)} — ${S.name}`);
+    const rooms = kind === "rooms";
+    const unitOf = (i) => rooms ? (i.perPerson ? u.perBed : u.perNight) : kind === "tours" ? u.perPerson : "";
+    const cards = `<div class="cards">${items.map((i, idx) => {
+      const unit = unitOf(i);
+      const button = rooms
+        ? `<a class="btn" href="#book" data-pick-room="${idx}">${esc(u.choose)}</a>`
+        : (() => { const link = wa(`${u.bookMsg}: ${t(i.name)} — ${S.name}`);
+            return link ? `<a class="btn" href="${link}" target="_blank" rel="noopener">${esc(kind === "services" ? u.whatsapp : u.book)}</a>` : ""; })();
       return `<div class="card">
         <h3>${esc(t(i.name))}</h3>
         <p>${esc(t(i.desc))}</p>
         ${i.price ? `<div class="price">${esc(i.price)} ${unit ? `<small>${esc(unit)}</small>` : ""}</div>` : ""}
-        ${link ? `<a class="btn" href="${link}" target="_blank" rel="noopener">${esc(kind === "services" ? u.whatsapp : u.book)}</a>` : ""}
+        ${button}
       </div>`;
     }).join("")}</div>`;
+    return rooms ? cards + renderBookingForm(u, items) : cards;
+  }
+
+  // ---- Booking request form (rooms) -------------------------------------
+  // Collects dates / room / guests, shows an estimated total, and opens WhatsApp
+  // with the request pre-filled. The owner confirms availability by reply.
+  const bk = { checkin: "", checkout: "", room: 0, guests: 2, name: "" }; // survives language switches
+  const priceNum = (p) => Number(String(p || "").replace(/[^0-9.]/g, "")) || 0;
+  const currency = (p) => (String(p || "").match(/^[^0-9]*/) || [""])[0].trim() || "Q";
+  const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const parseDay = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+
+  function renderBookingForm(u, rooms) {
+    const today = new Date();
+    if (!bk.checkin) { bk.checkin = isoDay(addDays(today, 7)); bk.checkout = isoDay(addDays(today, 9)); }
+    const maxGuests = S.booking?.maxGuests || 6;
+    return `
+    <form class="booking" id="book" novalidate>
+      <h3>${esc(u.bookTitle)}</h3>
+      <div class="booking-grid">
+        <label>${esc(u.checkin)}<input type="date" name="checkin" min="${isoDay(today)}" value="${bk.checkin}" required></label>
+        <label>${esc(u.checkout)}<input type="date" name="checkout" min="${isoDay(addDays(today, 1))}" value="${bk.checkout}" required></label>
+        <label class="room-field">${esc(u.room)}<select name="room">${rooms.map((r, i) =>
+          `<option value="${i}" ${i === bk.room ? "selected" : ""}>${esc(t(r.name))}${r.price ? ` — ${esc(r.price)}` : ""}</option>`).join("")}</select></label>
+        <label>${esc(u.guests)}<select name="guests">${Array.from({ length: maxGuests }, (_, k) => k + 1).map((n) =>
+          `<option ${n === bk.guests ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+        <label class="wide">${esc(u.yourName)}<input type="text" name="name" value="${esc(bk.name)}" autocomplete="name"></label>
+      </div>
+      <div class="booking-summary" id="booking-summary" aria-live="polite"></div>
+      <button class="btn btn-book" type="submit">${esc(u.requestBtn)}</button>
+      <p class="booking-note">${esc(t(S.booking?.note) || u.bookingNote)}</p>
+    </form>`;
+  }
+
+  function quote(u) {
+    const room = (S.rooms || [])[bk.room] || {};
+    if (!bk.checkin || !bk.checkout) return { error: u.errDates };
+    const nights = Math.round((parseDay(bk.checkout) - parseDay(bk.checkin)) / 86400000);
+    if (nights < 1) return { error: u.errDates };
+    const minN = S.booking?.minNights || 1;
+    if (nights < minN) return { error: u.errMin(minN) };
+    const units = room.perPerson ? bk.guests : 1;
+    const total = priceNum(room.price) * nights * units;
+    return { room, nights, total, cur: currency(room.price) };
+  }
+
+  function wireBooking(u) {
+    const form = $("book");
+    if (!form) return;
+    const summary = $("booking-summary");
+    const fmtDate = (s) => parseDay(s).toLocaleDateString(lang === "es" ? "es-GT" : "en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const money = (cur, n) => `${cur}${n.toLocaleString(lang === "es" ? "es-GT" : "en-US")}`;
+
+    const update = () => {
+      bk.checkin = form.checkin.value; bk.checkout = form.checkout.value;
+      bk.room = Number(form.room.value); bk.guests = Number(form.guests.value); bk.name = form.name.value;
+      if (bk.checkin) form.checkout.min = isoDay(addDays(parseDay(bk.checkin), 1));
+      const q = quote(u);
+      summary.classList.toggle("error", !!q.error);
+      summary.innerHTML = q.error ? esc(q.error)
+        : `${esc(u.nightsLabel(q.nights))} × ${esc(q.room.price)}${q.room.perPerson ? ` × ${bk.guests} ${esc(u.guestsShort)}` : ""}
+           = <strong>${esc(money(q.cur, q.total))}</strong> <small>${esc(u.estimate)}</small>`;
+      return q;
+    };
+
+    form.addEventListener("input", update);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const q = update();
+      if (q.error) return;
+      const lines = [
+        `${u.bookMsg} — ${S.name}:`,
+        `• ${u.room}: ${t(q.room.name)}`,
+        `• ${u.checkin}: ${fmtDate(bk.checkin)}`,
+        `• ${u.checkout}: ${fmtDate(bk.checkout)} (${u.nightsLabel(q.nights)})`,
+        `• ${u.guests}: ${bk.guests}`,
+        `• ${u.estimateTotal}: ${money(q.cur, q.total)}`,
+      ];
+      if (bk.name.trim()) lines.push(`${u.nameLabel}: ${bk.name.trim()}`);
+      lines.push(u.askConfirm);
+      const link = wa(lines.join("\n"));
+      if (link) window.open(link, "_blank", "noopener");
+    });
+
+    document.querySelectorAll("[data-pick-room]").forEach((a) => a.addEventListener("click", () => {
+      form.room.value = a.dataset.pickRoom;
+      update();
+    }));
+    update();
   }
 
   document.querySelectorAll(".lang-toggle button").forEach((b) =>
